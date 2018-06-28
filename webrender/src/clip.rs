@@ -257,19 +257,28 @@ impl ClipSource {
             }
         }
     }
+
+    pub fn is_rect(&self) -> bool {
+        match *self {
+            ClipSource::Rectangle(..) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct ClipSources {
     pub clips: Vec<(ClipSource, GpuCacheHandle)>,
     pub local_inner_rect: LayoutRect,
-    pub local_outer_rect: Option<LayoutRect>
+    pub local_outer_rect: Option<LayoutRect>,
+    pub only_rectangular_clips: bool,
 }
 
 impl ClipSources {
     pub fn new(clips: Vec<ClipSource>) -> Self {
         let (local_inner_rect, local_outer_rect) = Self::calculate_inner_and_outer_rects(&clips);
 
+        let only_rectangular_clips = clips.iter().all(|clip| clip.is_rect());
         let clips = clips
             .into_iter()
             .map(|clip| (clip, GpuCacheHandle::new()))
@@ -279,6 +288,7 @@ impl ClipSources {
             clips,
             local_inner_rect,
             local_outer_rect,
+            only_rectangular_clips,
         }
     }
 
