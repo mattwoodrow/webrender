@@ -2043,19 +2043,26 @@ impl PrimitiveStore {
             }
 
             let local_clips = frame_state.clip_store.get_opt(&clip_item.clip_sources).expect("bug");
+            rect_clips_only = rect_clips_only && local_clips.only_rectangular_clips;
+
+            // If this clip item is positioned by another positioning node, its relative position
+            // could change during scrolling. This means that we would need to resegment. Instead
+            // of doing that, only segment with clips that have the same positioning node.
+            // TODO(mrobinson, #2858): It may make sense to include these nodes, resegmenting only
+            // when necessary while scrolling.
+            if clip_item.transform_index != prim_run_context.scroll_node.transform_index {
+                continue;
+            }
+
             for &(ref clip, _) in &local_clips.clips {
                 let (local_clip_rect, radius, mode) = match *clip {
                     ClipSource::RoundedRectangle(rect, radii, clip_mode) => {
-                        rect_clips_only = false;
-
                         (rect, Some(radii), clip_mode)
                     }
                     ClipSource::Rectangle(rect, mode) => {
                         (rect, None, mode)
                     }
                     ClipSource::BoxShadow(ref info) => {
-                        rect_clips_only = false;
-
                         // For inset box shadows, we can clip out any
                         // pixels that are inside the shadow region
                         // and are beyond the inner rect, as they can't
@@ -2082,8 +2089,6 @@ impl PrimitiveStore {
                     }
                     ClipSource::LineDecoration(..) |
                     ClipSource::Image(..) => {
-                        rect_clips_only = false;
-
                         // TODO(gw): We can easily extend the segment builder
                         //           to support these clip sources in the
                         //           future, but they are rarely used.
