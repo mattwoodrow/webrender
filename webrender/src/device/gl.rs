@@ -526,6 +526,7 @@ pub struct Program {
     u_transform: gl::GLint,
     u_device_pixel_ratio: gl::GLint,
     u_mode: gl::GLint,
+    initialized: bool,
 }
 
 impl Drop for Program {
@@ -1031,8 +1032,15 @@ impl Device {
         }
     }
 
-    pub fn bind_program(&mut self, program: &Program) {
+    pub fn bind_program(&mut self, program: &mut Program) {
         debug_assert!(self.inside_frame);
+
+        if !program.initialized {
+            program.initialized = true;
+            program.u_transform = self.gl.get_uniform_location(program.id, "uTransform");
+            program.u_device_pixel_ratio = self.gl.get_uniform_location(program.id, "uDevicePixelRatio");
+            program.u_mode = self.gl.get_uniform_location(program.id, "uMode");
+        }
 
         if self.bound_program != program.id {
             self.gl.use_program(program.id);
@@ -1454,7 +1462,9 @@ impl Device {
             if let Some(binary) = cached_programs.binaries.borrow().get(&sources)
             {
                 self.gl.program_binary(pid, binary.format, &binary.binary);
+                loaded = true;
 
+                if false {
                 let mut link_status = [0];
                 unsafe {
                     self.gl.get_program_iv(pid, gl::LINK_STATUS, &mut link_status);
@@ -1472,6 +1482,7 @@ impl Device {
                     }
                 } else {
                     loaded = true;
+                }
                 }
             }
         }
@@ -1553,23 +1564,18 @@ impl Device {
             }
         }
 
-        let u_transform = self.gl.get_uniform_location(pid, "uTransform");
-        let u_device_pixel_ratio = self.gl.get_uniform_location(pid, "uDevicePixelRatio");
-        let u_mode = self.gl.get_uniform_location(pid, "uMode");
-
         let program = Program {
             id: pid,
-            u_transform,
-            u_device_pixel_ratio,
-            u_mode,
+            u_transform: 0,
+            u_device_pixel_ratio: 0,
+            u_mode: 0,
+            initialized: false,
         };
-
-        self.bind_program(&program);
 
         Ok(program)
     }
 
-    pub fn bind_shader_samplers<S>(&mut self, program: &Program, bindings: &[(&'static str, S)])
+    pub fn bind_shader_samplers<S>(&mut self, program: &mut Program, bindings: &[(&'static str, S)])
     where
         S: Into<TextureSlot> + Copy,
     {
